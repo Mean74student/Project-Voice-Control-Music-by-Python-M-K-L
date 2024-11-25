@@ -1,3 +1,4 @@
+
 import tkinter as tk
 from tkinter import filedialog, Listbox
 import speech_recognition as sr
@@ -5,7 +6,6 @@ import pyttsx3
 import pygame
 import os
 import random
-import threading
 
 # Initialize recognizer, TTS engine, and pygame mixer
 recognizer = sr.Recognizer()
@@ -14,7 +14,7 @@ pygame.mixer.init()
 
 # Global variables
 current_song = None
-music_files = {}
+music_files = {}  
 
 # Function to speak a given text
 def speak(text):
@@ -43,8 +43,7 @@ def process_voice_command():
     command = recognize_speech()
     if command:
         if "play" in command:
-            song_name = command.replace("play", "").strip()
-            play_song_by_name(song_name)
+            play_selected_song()
         elif "pause" in command:
             pause_music()
         elif "resume" in command:
@@ -62,24 +61,6 @@ def process_voice_command():
         else:
             update_song_label("Command not recognized.")
             speak("Command not recognized.")
-
-# Function to play a song by name
-def play_song_by_name(song_name):
-    global current_song
-    songs = playlist.get(0, tk.END)
-    matching_songs = [song for song in songs if song_name.lower() in song.lower()]
-    
-    if matching_songs:
-        song_to_play = matching_songs[0]
-        playlist.selection_clear(0, tk.END)
-        index = songs.index(song_to_play)
-        playlist.selection_set(index)
-        playlist.activate(index)
-        play_selected_song()
-        speak(f"Playing {song_to_play}")
-    else:
-        update_song_label("Song not found.")
-        speak(f"Sorry, I could not find the song {song_name}.")
 
 # Function to play selected music
 def play_selected_song():
@@ -153,7 +134,14 @@ def shuffle_music():
         songs = playlist.get(0, tk.END)
         if songs:
             random_song = random.choice(songs)
-            play_song_by_name(random_song)
+            song_path = music_files.get(random_song)
+            pygame.mixer.music.load(song_path)
+            pygame.mixer.music.play()
+            global current_song
+            current_song = random_song
+            update_song_label(f"Playing: {random_song}")
+            highlight_current_song(random_song)
+            speak(f"Playing {random_song}")
         else:
             update_song_label("No songs to shuffle.")
             speak("No songs to shuffle.")
@@ -162,15 +150,15 @@ def shuffle_music():
         speak("Unable to shuffle songs.")
         print(e)
 
-# Function to add music files
+# Function to add music files or a folder of music
 def add_music():
     choice = filedialog.askopenfilenames(
-        title="Select Music Files",
+        title="Select Music Files or Folder",
         filetypes=[("MP3 Files", "*.mp3")],
     )
     if choice:
         for file in choice:
-            if os.path.isfile(file):
+            if os.path.isfile(file):  # Add individual files
                 file_name = os.path.basename(file)
                 if file_name not in music_files:
                     music_files[file_name] = file
@@ -178,8 +166,19 @@ def add_music():
         update_song_label("Music added successfully.")
         speak("Music added successfully.")
     else:
-        update_song_label("No files selected.")
-        speak("No files selected.")
+        folder = filedialog.askdirectory(title="Select a Folder Containing Music Files")
+        if folder:
+            for song in os.listdir(folder):
+                if song.endswith(".mp3"):
+                    song_path = os.path.join(folder, song)
+                    if song not in music_files:
+                        music_files[song] = song_path
+                        playlist.insert(tk.END, song)
+            update_song_label("Folder music added successfully.")
+            speak("Folder music added successfully.")
+        else:
+            update_song_label("No files or folder selected.")
+            speak("No files or folder selected.")
 
 # Function to update the song label
 def update_song_label(message):
@@ -198,10 +197,6 @@ def highlight_current_song(song=None):
 # Function to clear song highlights
 def clear_highlight():
     playlist.selection_clear(0, tk.END)
-
-# Start voice command in a separate thread
-def start_voice_command():
-    threading.Thread(target=process_voice_command).start()
 
 # Main application
 app = tk.Tk()
@@ -245,10 +240,11 @@ shuffle_button.grid(row=2, column=1, padx=5, pady=5)
 next_button = tk.Button(button_frame, text="Next", command=play_next_song, width=10, bg="#4caf50", fg="white", font=("Arial", 12))
 next_button.grid(row=3, column=0, padx=5, pady=5)
 
-previous_button = tk.Button(button_frame, text="Back", command=play_previous_song, width=10, bg="#673ab7", fg="white", font=("Arial", 12))
-previous_button.grid(row=3, column=1, padx=5, pady=5)
+back_button = tk.Button(button_frame, text="Back", command=play_previous_song, width=10, bg="#ff9800", fg="white", font=("Arial", 12))
+back_button.grid(row=3, column=1, padx=5, pady=5)
 
-voice_button = tk.Button(app, text="Voice Command", command=start_voice_command, width=30, bg="#673ab7", fg="white", font=("Arial", 14))
-voice_button.pack(pady=10)
+voice_button = tk.Button(app, text="Voice Command", command=process_voice_command, width=20, bg="#ff5722", fg="white", font=("Arial", 14))
+voice_button.pack(pady=20)
 
+# Run the application
 app.mainloop()
